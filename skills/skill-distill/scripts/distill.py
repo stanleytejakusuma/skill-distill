@@ -130,9 +130,10 @@ def cmd_trial(a):
         raise SystemExit(f"{it} exists; use a new --iter")
     shutil.copytree(run / "skill", it / "skill")
     session = cfg["tmux"]
-    if sh(["tmux", "has-session", "-t", session], timeout=10).returncode:
+    if not a.sync and sh(["tmux", "has-session", "-t", session], timeout=10).returncode:
         sh(["tmux", "new-session", "-d", "-s", session, "-n", "ledger", f"tail -F {run}/ledger.jsonl"], timeout=10)
     prompt = (run / "prompt.md").read_text().rstrip() + SKILL_POINTER.format(name=cfg["name"])
+    procs = []
     for k in range(1, a.k + 1):
         t = it / f"t{k}"
         make_workspace(cfg, t / "workspace")
@@ -155,11 +156,22 @@ date -Iseconds > {t}/ended_at
 echo "== trial done (exit $(cat {t}/exit_code)) =="
 """)
         win = f"i{n:02d}-t{k}"
-        r = sh(["tmux", "new-window", "-d", "-t", session, "-n", win, f"bash {t}/run.sh; sleep 86400"], timeout=10)
-        if r.returncode:
-            raise SystemExit(f"tmux failed: {r.stderr}")
-        print(f"started {session}:{win}  ->  {t}")
-    print(f"watch: tmux attach -t {session}")
+        if a.sync:
+            p = subprocess.Popen(["bash", str(t / "run.sh")], cwd=str(t),
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+            procs.append((win, p))
+            print(f"started sync {win}  ->  {t}", flush=True)
+        else:
+            r = sh(["tmux", "new-window", "-d", "-t", session, "-n", win, f"bash {t}/run.sh; sleep 86400"], timeout=10)
+            if r.returncode:
+                raise SystemExit(f"tmux failed: {r.stderr}")
+            print(f"started {session}:{win}  ->  {t}")
+    if a.sync:
+        for _, p in procs:
+            p.wait()
+        cmd_status(argparse.Namespace(run=str(run), iter=n))
+    else:
+        print(f"watch: tmux attach -t {session}")
 
 
 def trial_dirs(run, n):
@@ -350,6 +362,7 @@ def main():
     p.add_argument("--tmux"); p.add_argument("--timeout-min", type=float, default=90)
     p.add_argument("--force", action="store_true")
     p = sub.add_parser("trial"); p.add_argument("run"); p.add_argument("--iter", type=int); p.add_argument("-k", type=int, default=3)
+    p.add_argument("--sync", action="store_true", help="run trials directly in parallel without tmux and wait for exit")
     for c in ("status", "evidence", "report"):
         p = sub.add_parser(c); p.add_argument("run"); p.add_argument("--iter", type=int)
         if c == "evidence":
