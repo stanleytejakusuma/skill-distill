@@ -155,18 +155,20 @@ class PiSupportTests(unittest.TestCase):
             self.assertIn("-p", argv)
             self.assertIn("--no-skills", argv)
             self.assertIn("--no-context-files", argv)
+            self.assertIn("--no-extensions", argv)
             self.assertIn("--thinking", argv)
             self.assertIn("off", argv)
             self.assertIn("--", argv)
             self.assertEqual(argv[argv.index("--") + 1], "-leading-dash prompt body\nsecond line")
             self.assertTrue((trace / "session.jsonl").exists())
 
-            # PI_KEEP_CONTEXT=1 omits --no-context-files and propagates non-zero rc
-            env2 = {**env, "PI_KEEP_CONTEXT": "1", "FAKE_PI_RC": "7"}
+            # PI_KEEP_CONTEXT=1 & PI_KEEP_EXTENSIONS=1 omit both flags and propagate non-zero rc
+            env2 = {**env, "PI_KEEP_CONTEXT": "1", "PI_KEEP_EXTENSIONS": "1", "FAKE_PI_RC": "7"}
             r2 = subprocess.run(["bash", str(ADAPTERS / "pi.sh")], env=env2, capture_output=True, text=True)
             self.assertEqual(r2.returncode, 7)
             argv2 = json.loads((ws / "argv.json").read_text())
             self.assertNotIn("--no-context-files", argv2)
+            self.assertNotIn("--no-extensions", argv2)
 
     def test_distill_trial_sync_runs_without_tmux_and_collects_evidence(self):
         with tempfile.TemporaryDirectory() as td:

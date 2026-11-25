@@ -8,6 +8,9 @@ args=(-p --model "$MODEL" --session-dir "$TRACE_DIR/sessions" --no-skills)
 if [[ "${PI_KEEP_CONTEXT:-0}" != "1" ]]; then
   args+=(--no-context-files)
 fi
+if [[ "${PI_KEEP_EXTENSIONS:-0}" != "1" ]]; then
+  args+=(--no-extensions)
+fi
 if [[ -n "${STUDENT_ARGS:-}" ]]; then
   # shellcheck disable=SC2206
   extra=($STUDENT_ARGS)
